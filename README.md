@@ -1,2 +1,2 @@
-# EQ-VA-official
+# HELLO!
 This is an official implement of Affective EEG-Based Person Identification Across Electrode Configurations
