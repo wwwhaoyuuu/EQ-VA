@@ -1,0 +1,10 @@
+SEED
+    -下采样之后的原始数据文件夹（Origin）
+        -存放的数据分成三个文件夹，Postive、Negative、Neutral
+            -里面的文件是分为train_data.pkl、val_data.pkl、train_label.pkl、val_label.pkl，每个文件的shape应该是[n_samples,channels,n_window,window_size]
+            tips：channels是指数据的通道数，n_window是指时间的窗口数，window_size是指数据的窗口大小，比如说，一份原始数据是[62,3000]，我的时间窗大小是200，那做完之后的一份数据应该是[62,15,200]
+
+    -提取DE特征之后的原始数据文件夹（DE_features）
+        -存放的数据分成三个文件夹，Postive、Negative、Neutral
+            -里面的文件为train_data.pkl、val_data.pkl、train_label.pkl、val_label.pkl，每个文件的shape应该是[n_samples,channels,n_second(n_window),n_features]
+            tips：channels是指数据的通道数，n_window，或者一样说是时间窗口数，n_features是指特征数量，提取五个频段之后做DE特征提取就是五个特征。比如说，一份原始数据是[62,3000]，我的时间窗大小是200，提了五个频段上的DE特征，那做完之后的一份数据应该是[62,15,5]
