@@ -17,4 +17,4 @@ If you want to compare different methods, you should use data with the same numb
 
 ## shape[bs,n_channels,n_second,de_features]
 
-This folder includes the code about training and validation of model.
+The folder contains a series of Python files for model definition, training, and inference, with detailed descriptions to be provided later.
