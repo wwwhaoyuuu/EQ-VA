@@ -80,8 +80,8 @@ class Attention(nn.Module):
         # shape[bs,heads,seq_len,dim_head]
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
-        # rope = RoPE()
-        # q, k = rope(q, k)
+        rope = RoPE()
+        q, k = rope(q, k)
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
