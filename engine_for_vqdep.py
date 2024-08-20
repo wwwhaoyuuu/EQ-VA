@@ -130,22 +130,54 @@ def plot_comparison(original_data, reconstructed_data, epoch,
     - epoch: 当前的训练周期
     - save_dir: 保存图像的目录
     """
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    os.makedirs(save_dir,exist_ok=True)
 
-    fig, axes = plt.subplots(5, 1, figsize=(10, 15))
-
+    fig, ax = plt.subplots(5, 1, figsize=(10, 15), sharex=True, sharey=True)
+    labels = [r'$dim0$', r'$dim1$', r'$dim2$', r'$dim3$', r'$dim4$']
+    
     for i in range(5):  # feature_dim是5
-        axes[i].plot(original_data[:, i].detach().cpu().numpy(), label='Original')
-        axes[i].plot(reconstructed_data[:, i].detach().cpu().numpy(), label='Reconstructed')
-        axes[i].set_title(f'Feature {i + 1}')
-        axes[i].legend()
+        ax[i].plot(original_data[:, i].detach().cpu().numpy(), label='Original_DE')
+        ax[i].plot(reconstructed_data[:, i].detach().cpu().numpy(), label='Reconstructed_DE')
+        ax[i].set_ylabel(labels[i], fontsize=20, rotation=0, labelpad=30, ha='right')
+        ax[i].legend()
 
     plt.suptitle(f'Comparison at Epoch {epoch}')
     plt.tight_layout()
 
     # 保存图像
     plt.savefig(os.path.join(save_dir, f'comparison_epoch_{epoch}.png'))
+    plt.close(fig)
+
+    # 绘制并保存原始数据图像
+    fig, ax = plt.subplots(5, 1, figsize=(10, 8), sharex=True, sharey=True)
+    for i in range(5):
+        ax[i].plot(original_data[:, i].detach().cpu().numpy(), linewidth=5, color='darkblue')
+        ax[i].set_ylabel(labels[i], fontsize=12, rotation=0, labelpad=20, ha='right')
+        ax[i].set_xticks([])  # 移除x轴刻度
+        ax[i].set_yticks([])  # 移除y轴刻度
+        ax[i].spines['top'].set_visible(False)  # 移除顶部边框
+        ax[i].spines['right'].set_visible(False)  # 移除右侧边框
+        ax[i].spines['left'].set_visible(False)  # 移除左侧边框
+        ax[i].spines['bottom'].set_visible(False)  # 移除底部边框
+    plt.suptitle(f'Original DE Data')
+    plt.subplots_adjust(hspace=0)  # 调整子图之间的距离为负值
+    plt.savefig(os.path.join(save_dir, f'original_DE_epoch_{epoch}.png'))
+    plt.close(fig)
+
+    # 绘制并保存重建数据图像
+    fig, ax = plt.subplots(5, 1, figsize=(10, 8), sharex=True, sharey=True)
+    for i in range(5):
+        ax[i].plot(reconstructed_data[:, i].detach().cpu().numpy())
+        ax[i].set_ylabel(labels[i], fontsize=12, rotation=0, labelpad=20, ha='right')
+        ax[i].set_xticks([])  # 移除x轴刻度
+        ax[i].set_yticks([])  # 移除y轴刻度
+        ax[i].spines['top'].set_visible(False)  # 移除顶部边框
+        ax[i].spines['right'].set_visible(False)  # 移除右侧边框
+        ax[i].spines['left'].set_visible(False)  # 移除左侧边框
+        ax[i].spines['bottom'].set_visible(False)  # 移除底部边框
+    plt.suptitle(f'Reconstructed DE Data')
+    plt.subplots_adjust(hspace=0)  # 调整子图之间的距离为负值
+    plt.savefig(os.path.join(save_dir, f'reconstructed_DE_epoch_{epoch}.png'))
     plt.close(fig)
 
 
@@ -163,30 +195,71 @@ def evaluate(data_loader_list, model, device, log_writer=None, epoch=None, ch_na
             print("Reset the codebook statistic info in quantizer before testing")
         except:
             pass
-
+    
     dataset_id = 1
     for data_loader, ch_names in zip(data_loader_list, ch_names_list):
         input_chans = utils.get_input_chans(ch_names)
+
+        dataset_EEG = []
+        dataset_quantize = []
+        dataset_labels = []
+
         for step, (batch) in enumerate(metric_logger.log_every(data_loader, 10, header)):
             # 可能考虑留下
             # EEG = batch.float().to(device, non_blocking=True) / 100
             EEG = batch[0].float().to(device, non_blocking=True)
             loss, log_loss, xrec = model(EEG, input_chans=input_chans)
-
             metric_logger.update(loss=loss.item())
-
             new_log_loss = {k.split('/')[-1]: v for k, v in log_loss.items() if k not in ['total_loss']}
+
+            if epoch == 120:
+                quantize = model.module.get_codebook_quantize(EEG, input_chans=input_chans)
+                labels = model.module.get_codebook_indices(EEG, input_chans=input_chans)
+                dataset_EEG.append(EEG)
+                dataset_quantize.append(quantize)
+                dataset_labels.append(labels)
+
+            # # 画一下TSNE
+            # if epoch == 20:
+            #     quantize = model.module.get_codebook_quantize(EEG, input_chans=input_chans)
+            #     labels = model.module.get_codebook_indices(EEG, input_chans=input_chans)
+            #     flat_data = EEG.view(-1, EEG.size(-1)).cpu().numpy()
+            #     flat_quantize = flat_quantize = quantize.view(-1, quantize.size(-1)).cpu().numpy()
+            #     flat_labels = labels.view(-1).cpu().numpy()
+            #     dir_name = args.log_dir.split('/')[-2]
+            #     model.module.visualize_tsne(flat_data,flat_quantize, flat_labels, epoch, step,save_path = f'./PI/shape[bs,n_channels,n_second,de_features]/comparison_plots_{dir_name}/dataset{dataset_id}')
+
         metric_logger.update(**new_log_loss)
 
+        
         # 在每10个epoch的最后一个batch里绘制图像
-        if (epoch + 1) % 10 == 0:
-        # if (epoch + 1) % 1 == 0:
+        # if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 1 == 0:
             original_data = EEG[-1]  # 获取最后一个样本
             reconstructed_data = xrec[-1]  # 获取最后一个样本的重建数据
             original_data_reshaped = original_data.view(-1, 5)  # 变形为[n_channels * n_times, feature_dim]
             reconstructed_data_reshaped = reconstructed_data.view(-1, 5)  # 变形为[n_channels * n_times, feature_dim]
+            dir_name = args.log_dir.split('/')[-2]
             plot_comparison(original_data_reshaped, reconstructed_data_reshaped, epoch + 1,
-                            f'./PI/shape[bs,n_channels,n_second,de_features]/comparison_plots/dataset{dataset_id}')
+                            f'./PI/shape[bs,n_channels,n_second,de_features]/comparison_plots/{dir_name}/dataset{dataset_id}')
+        
+        # 可视化 t-SNE
+        if epoch == 120:
+            # 汇总数据
+            dataset_EEG = torch.cat(dataset_EEG, dim=0)
+            dataset_quantize = torch.cat(dataset_quantize, dim=0)
+            dataset_labels = torch.cat(dataset_labels, dim=0)
+
+            # 展平数据
+            flat_data = dataset_EEG.view(-1, dataset_EEG.size(-1)).cpu().numpy()
+            flat_quantize = dataset_quantize.view(-1, dataset_quantize.size(-1)).cpu().numpy()
+            flat_labels = dataset_labels.view(-1).cpu().numpy()
+            print(flat_data.shape, flat_quantize.shape, flat_labels.shape)
+
+            save_path = f'./PI/shape[bs,n_channels,n_second,de_features]/comparison_plots_{args.log_dir.split("/")[-2]}/dataset{dataset_id}'
+            os.makedirs(save_path, exist_ok=True)
+            model.module.visualize_tsne(flat_data, flat_quantize, flat_labels, epoch, 0, save_path)
+
         dataset_id = dataset_id + 1
 
     # gather the stats from all processes

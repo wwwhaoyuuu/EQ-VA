@@ -13,15 +13,18 @@ from engine_for_vqdep import evaluate, train_one_epoch, calculate_codebook_usage
 from utils import NativeScalerWithGradNormCount as NativeScaler
 import utils
 import modeling_vqdep
+import random
 
 print("Current working directory:", os.getcwd())
 
 
 def get_args():
     parser = argparse.ArgumentParser('vqdep training', add_help=False)
+    parser.add_argument('--emotion',default='neutral',type=str)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--save_ckpt_freq', default=20, type=int)
+    parser.add_argument('--num_chs', default=None)
 
     # Model parameters
     parser.add_argument('--model', default='vqdep_vocab_1k_dim_32', type=str, metavar='MODEL')
@@ -121,37 +124,42 @@ def main(args):
     # fix the seed for reproducibility
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
-    cudnn.benchmark = True
+    random.seed(seed)  # 添加固定random模块的随机种子
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     model = get_model(args)
 
     # 为PI任务设计，同一个数据集的数据放在一个列表中，不同数据集以列表分开
     # 适应了多种情绪，多数据集的情况，但是不会自动去进行类平衡，类平衡问题需要在制作数据集期间解决
     dataset_train = [
-        [Path("./PI/Dataset/SEED_PI/window5_step5")],
-        [Path("./PI/Dataset/FACED_PI/window5_step5")],
+        # [Path(f"./PI/Dataset/SEED_PI/window1_step1_ch{args.num_chs if args.num_chs is not None else 62}")],
+        [Path(f"./PI/Dataset/FACED_PI/window1_step1_ch{args.num_chs if args.num_chs is not None else 30}_sub30")],
 
     ]
     valance_train = [
-        ['positive'],
-        ['positive']
+        # [args.emotion],
+        [args.emotion]
     ]
     dataset_train_list, train_ch_names_list, num_class = utils.build_dataset(dataset_train, valance_train,
                                                                              stage="train")
     dataset_val = [
-        [Path("./PI/Dataset/SEED_PI/window5_step5")],
-        [Path("./PI/Dataset/FACED_PI/window5_step5")],
+        [Path(f"./PI/Dataset/SEED_PI/window1_step1_ch{args.num_chs if args.num_chs is not None else 62}")],
+        [Path(f"./PI/Dataset/FACED_PI/window1_step1_ch{args.num_chs if args.num_chs is not None else 30}_sub30")],
     ]
     valance_val = [
-        ['positive'],
-        ['positive']
+        # [args.emotion],
+        [args.emotion]
     ]
     if args.disable_eval:
         dataset_val_list = None
     else:
         dataset_val_list, val_ch_names_list, num_class = utils.build_dataset(dataset_val, valance_val,
                                                                              stage="eval")
+    print(num_class)
 
     if True:
         num_tasks = utils.get_world_size()

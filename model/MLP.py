@@ -29,7 +29,7 @@ class MLP(nn.Module):
 
 def get_model_default_params():
     return dict(
-            input_size=62 * 5, hidden_size1=64, hidden_size2=128, output_size=138
+            input_size=30 * 5, hidden_size1=64, hidden_size2=128, output_size=138
     )
 
 

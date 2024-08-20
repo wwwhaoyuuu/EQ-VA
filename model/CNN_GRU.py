@@ -30,7 +30,7 @@ class CNN_GRU(nn.Module):
 
 def get_model_default_params():
     return dict(
-            num_classes=138, time=1, num_channels=30
+            num_classes=138, time=1, num_channels=62
     )
 
 
@@ -38,7 +38,7 @@ def get_model_default_params():
 def CNN_GRU_classifier(pretrained=False, **kwargs):
     config = get_model_default_params()
     config["num_classes"] = kwargs["num_classes"]
-    print("EEGNet classifier parameters:", config)
+    print("CNN-GRU classifier parameters:", config)
     model = CNN_GRU(**config)
 
     return model

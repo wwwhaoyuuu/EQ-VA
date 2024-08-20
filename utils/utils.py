@@ -836,26 +836,43 @@ def get_metrics(output,
     results = {}
 
     # 将 output 转换为预测类别
-    pred = output.argmax(dim=1)
+    pred = torch.argmax(output, dim=1)
 
     # 计算 Accuracy
     if 'accuracy' in metrics:
         accuracy = (pred == target).float().mean().item()
         results['accuracy'] = accuracy
 
+    # # 计算 Balanced Accuracy
+    # if 'balanced_accuracy' in metrics:
+    #     num_classes = output.size(1)
+    #     class_correct = [0] * num_classes
+    #     class_total = [0] * num_classes
+
+    #     for i in range(len(target)):
+    #         label = target[i].item()
+    #         class_correct[label] += (pred[i] == label).item()
+    #         class_total[label] += 1
+
+    #     class_acc = [class_correct[i] / class_total[i] if class_total[i] != 0 else 0 for i in range(num_classes)]
+    #     balanced_accuracy = sum(class_acc) / num_classes
+    #     results['balanced_accuracy'] = balanced_accuracy
+
     # 计算 Balanced Accuracy
-    if 'balance_acc' in metrics:
-        num_classes = output.size(1)
-        class_correct = [0] * num_classes
-        class_total = [0] * num_classes
+    if 'balanced_accuracy' in metrics:
+        unique_classes = torch.unique(target)
+        num_classes = len(unique_classes)
+        class_correct = {cls.item(): 0 for cls in unique_classes}
+        class_total = {cls.item(): 0 for cls in unique_classes}
 
         for i in range(len(target)):
-            label = target[i]
+            label = target[i].item()
             class_correct[label] += (pred[i] == label).item()
             class_total[label] += 1
 
-        class_acc = [class_correct[i] / class_total[i] if class_total[i] != 0 else 0 for i in range(num_classes)]
+        class_acc = [class_correct[cls.item()] / class_total[cls.item()] for cls in unique_classes]
         balanced_accuracy = sum(class_acc) / num_classes
-        results['balance_accuracy'] = balanced_accuracy
+        results['balanced_accuracy'] = balanced_accuracy
 
     return results
+

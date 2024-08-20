@@ -60,7 +60,7 @@ class EEGNet(nn.Module):
 
 def get_model_default_params():
     return dict(
-            num_classes=138, n_channels=30, feature_dim=5, dropout_rate=0.5, kern_length=16, F1=8, D=2, F2=16
+            num_classes=138, n_channels=62, feature_dim=5, dropout_rate=0.5, kern_length=16, F1=8, D=2, F2=16
     )
 
 

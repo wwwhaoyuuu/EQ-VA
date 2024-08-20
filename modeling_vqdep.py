@@ -7,6 +7,12 @@ from timm.models.registry import register_model
 from norm_ema_quantizer import NormEMAVectorQuantizer
 from backbone_vqdep import DET
 from modeling_VAT_classifier import VAT_classifier
+from sklearn.manifold import TSNE
+from matplotlib import pyplot as plt
+from collections import Counter
+import numpy as np
+from matplotlib.colors import ListedColormap
+import os
 
 
 class VQDEP(nn.Module):
@@ -104,6 +110,65 @@ class VQDEP(nn.Module):
         # quantize shape[b,c,t,d]
         return self.get_tokens(x, input_chans, **kwargs)['quantize']
 
+    def visualize_tsne(self, data, codes, labels, epoch, step=1, save_path=None):
+        os.makedirs(save_path, exist_ok=True)
+
+        tsne = TSNE(n_components=2, perplexity=40, n_iter=1000)
+        codes_2d = tsne.fit_transform(codes)
+        
+        plt.figure(figsize=(20, 20))
+
+        # 找出标签中出现次数最多的 20 个标签
+        label_counter = Counter(labels)
+        top_20_labels = [label for label, _ in label_counter.most_common(20)]
+        
+        # 过滤出这 20 个标签的数据
+        mask = np.isin(labels, top_20_labels)
+        filtered_codes_2d = codes_2d[mask]
+        filtered_labels = labels[mask]
+
+        # 把图片拿出来
+        filtered_data = data[mask]
+        
+        # 使用一个连续的 colormap 并生成足够多的颜色
+        num_labels = len(top_20_labels)
+        base_cmap = plt.get_cmap('tab20', num_labels)
+        colors = base_cmap(np.linspace(0, 1, num_labels))
+        cmap = ListedColormap(colors)
+        
+        # 创建颜色数组，确保标签在有效范围内
+        label_to_color = {label: colors[i] for i, label in enumerate(top_20_labels)}
+        color_array = np.array([label_to_color[label] for label in filtered_labels])
+        
+        # 绘制散点图，并显示图例
+        scatter = plt.scatter(filtered_codes_2d[:, 0], filtered_codes_2d[:, 1], c=color_array, marker='o', alpha=0.8, s=100)
+        handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=15, label=str(label)) for label, color in label_to_color.items()]
+        
+        # 设置图例并将其放置在图外
+        plt.legend(handles=handles, title='Code idx', bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0., fontsize=10, title_fontsize=12)
+        plt.title(f"t-SNE visualization of Codes", fontsize=24)
+        plt.subplots_adjust(right=0.8)  # 调整图例的显示位置
+
+        # 设置坐标轴的缩放比例
+        plt.xlim(np.min(filtered_codes_2d[:, 0]) * 1.1, np.max(filtered_codes_2d[:, 0]) * 1.1)
+        plt.ylim(np.min(filtered_codes_2d[:, 1]) * 1.1, np.max(filtered_codes_2d[:, 1]) * 1.1)
+
+        plt.savefig(os.path.join(save_path, f"tsne_epoch_{epoch}_step{step}.png"))
+        plt.close()
+
+        # # 保存对应的原始数据图像，每个标签最多保存三张
+        # label_save_count = Counter()
+        # for i, (datum, label) in enumerate(zip(filtered_data, filtered_labels)):
+        #     if label_save_count[label] >= 3:
+        #         continue  # 跳过超过三张的标签
+        #     plt.figure()
+        #     plt.plot(datum, color='red')
+        #     plt.title(f"Label {label}")
+        #     plt.savefig(os.path.join(save_path, f"label_{label}_index_{i}.png"))
+        #     plt.close()
+        #     label_save_count[label] += 1  # 更新计数器
+            
+
     def calculate_rec_loss(self, rec, target):
         target = rearrange(target, 'b c t d -> b (c t) d')
         rec_loss = self.loss_fn(rec, target)
@@ -136,7 +201,7 @@ class VQDEP(nn.Module):
 
 def get_model_default_params():
     return dict(
-        feature_dim=5, embed_dim=256, depth=12, heads=10, mlp_dim=2048, dim_head=64, dropout=0.01, emb_dropout=0.01
+        feature_dim=5, embed_dim=512, depth=12, heads=10, mlp_dim=256, dim_head=64, dropout=0.01, emb_dropout=0.01
     )
 
 
@@ -147,12 +212,12 @@ def vqdep_vocab_1k_dim_32(pretrained=False, pretrained_weight=None, as_tokenzer=
 
     # encoder settings
     encoder_config['feature_dim'] = 5
-    encoder_config['depth'] = 8
+    encoder_config['depth'] = 12
     encoder_config['heads'] = 10
 
     # decoder settings
     decoder_config['feature_dim'] = code_dim
-    decoder_config['depth'] = 2
+    decoder_config['depth'] = 3
     decoder_config['heads'] = 10
     decoder_out_dim = 5
 
