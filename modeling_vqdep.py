@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from einops import rearrange
 from timm.models.layers import trunc_normal_
 from timm.models.registry import register_model
-from norm_ema_quantizer import NormEMAVectorQuantizer
+from utils.norm_ema_quantizer import NormEMAVectorQuantizer
 from backbone_vqdep import DET
-from modeling_VAT_classifier import VAT_classifier
+from modeling_VAT import VAT_classifier
 from sklearn.manifold import TSNE
 from matplotlib import pyplot as plt
 from collections import Counter

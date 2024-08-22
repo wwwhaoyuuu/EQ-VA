@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 设置OpenMP线程数
-export OMP_NUM_THREADS=1
+export OMP_NUM_THREADS=32
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3,5,6
 

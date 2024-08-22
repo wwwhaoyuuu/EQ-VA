@@ -85,14 +85,13 @@ class EmbeddingEMA(nn.Module):
         if self.initted:
             return
         print("Performing Kemans init for codebook")
-        # kmeans迭代次数，原来是10，我改成20了
+        # kmeans iter num default 10
         embed, cluster_size = kmeans(data, self.num_tokens, 30, use_cosine_sim=True)
         self.weight.data.copy_(embed)
         self.cluster_size.data.copy_(cluster_size)
         self.initted.data.copy_(torch.Tensor([True]))
 
     def forward(self, embed_id):
-        # 用nn.embedding映射embed到weight
         return F.embedding(embed_id, self.weight)
 
     def cluster_size_ema_update(self, new_cluster_size):

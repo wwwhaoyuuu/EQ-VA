@@ -5,7 +5,7 @@ from einops import rearrange, repeat
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, hidden_dim, dropout=0.):
+    def __init__(self, dim, hidden_dim, dropout=0.0):
         super().__init__()
         self.net = nn.Sequential(
             nn.LayerNorm(dim),
@@ -13,7 +13,7 @@ class FeedForward(nn.Module):
             nn.GELU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, dim),
-            nn.Dropout(dropout)
+            nn.Dropout(dropout),
         )
 
     def forward(self, x):
@@ -24,9 +24,14 @@ class RoPE(nn.Module):
     def __init__(self):
         super(RoPE, self).__init__()
 
-    def sinusoidal_position_embedding(self, batch_size, num_heads, max_len, output_dim, device):
+    def sinusoidal_position_embedding(
+        self, batch_size, num_heads, max_len, output_dim, device
+    ):
         position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, output_dim, 2).float() * -(torch.log(torch.tensor(10000.0)) / output_dim))
+        div_term = torch.exp(
+            torch.arange(0, output_dim, 2).float()
+            * -(torch.log(torch.tensor(10000.0)) / output_dim)
+        )
         embeddings = torch.zeros(max_len, output_dim, device=device)
         embeddings[:, 0::2] = torch.sin(position * div_term)
         embeddings[:, 1::2] = torch.cos(position * div_term)
@@ -39,7 +44,9 @@ class RoPE(nn.Module):
     def forward(self, q, k):
         batch_size, num_heads, max_len, output_dim = q.shape
         device = q.device
-        pos_emb = self.sinusoidal_position_embedding(batch_size, num_heads, max_len, output_dim, device)
+        pos_emb = self.sinusoidal_position_embedding(
+            batch_size, num_heads, max_len, output_dim, device
+        )
 
         cos_pos = pos_emb[..., 1::2].repeat_interleave(2, dim=-1)
         sin_pos = pos_emb[..., ::2].repeat_interleave(2, dim=-1)
@@ -54,13 +61,13 @@ class RoPE(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, dim, heads=8, dim_head=64, dropout=0.0):
         super().__init__()
         inner_dim = dim_head * heads
         project_out = not (heads == 1 and dim_head == dim)
 
         self.heads = heads
-        self.scale = dim_head ** -0.5
+        self.scale = dim_head**-0.5
 
         self.norm = nn.LayerNorm(dim)
 
@@ -69,16 +76,17 @@ class Attention(nn.Module):
 
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias=False)
 
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, dim),
-            nn.Dropout(dropout)
-        ) if project_out else nn.Identity()
+        self.to_out = (
+            nn.Sequential(nn.Linear(inner_dim, dim), nn.Dropout(dropout))
+            if project_out
+            else nn.Identity()
+        )
 
     def forward(self, x):
         x = self.norm(x)
 
         qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=self.heads), qkv)
 
         rope = RoPE()
         q, k = rope(q, k)
@@ -89,20 +97,24 @@ class Attention(nn.Module):
         attn = self.dropout(attn)
 
         out = torch.matmul(attn, v)
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = rearrange(out, "b h n d -> b n (h d)")
         return self.to_out(out)
 
 
 class Transformer(nn.Module):
-    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.):
+    def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout=0.0):
         super().__init__()
         self.norm = nn.LayerNorm(dim)
         self.layers = nn.ModuleList([])
         for _ in range(depth):
-            self.layers.append(nn.ModuleList([
-                Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout),
-                FeedForward(dim, mlp_dim, dropout=dropout)
-            ]))
+            self.layers.append(
+                nn.ModuleList(
+                    [
+                        Attention(dim, heads=heads, dim_head=dim_head, dropout=dropout),
+                        FeedForward(dim, mlp_dim, dropout=dropout),
+                    ]
+                )
+            )
 
     def forward(self, x):
         for attn, ff in self.layers:
@@ -137,17 +149,32 @@ class TokenEmbedding(nn.Module):
 
 # Vector Analysis Transformer
 class VAT(nn.Module):
-    def __init__(self, *, num_classes, feature_dim, embed_dim, depth, heads, mlp_dim, dim_head=64,
-                 dropout=0., emb_dropout=0.):
+    def __init__(
+        self,
+        *,
+        num_classes,
+        feature_dim,
+        embed_dim,
+        depth,
+        heads,
+        mlp_dim,
+        dim_head=64,
+        dropout=0.0,
+        emb_dropout=0.0
+    ):
         super().__init__()
         self.eeg_proj = TokenEmbedding(c_in=feature_dim, d_model=embed_dim)
 
         self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
-        self.spa_embed = nn.Parameter(torch.randn(1, 128 + 1, embed_dim), requires_grad=True)
+        self.spa_embed = nn.Parameter(
+            torch.randn(1, 128 + 1, embed_dim), requires_grad=True
+        )
         self.tem_embed = nn.Parameter(torch.randn(1, 16, embed_dim), requires_grad=True)
 
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(embed_dim, depth, heads, dim_head, mlp_dim, dropout)
+        self.transformer = Transformer(
+            embed_dim, depth, heads, dim_head, mlp_dim, dropout
+        )
         self.norm_layer = nn.LayerNorm(embed_dim)
 
         self.lm_head = nn.Linear(embed_dim, num_classes)
@@ -157,16 +184,28 @@ class VAT(nn.Module):
         x = x.flatten(1, 2)
         x = self.eeg_proj(x)
 
-        cls_tokens = repeat(self.cls_token, '1 1 d -> b 1 d', b=bs)
+        cls_tokens = repeat(self.cls_token, "1 1 d -> b 1 d", b=bs)
         x = torch.cat((cls_tokens, x), dim=1)
 
         if input_chans is not None:
             spa_embed_used = self.spa_embed[:, input_chans]
-            spa_embed = spa_embed_used[:, 1:, :].unsqueeze(2).expand(bs, -1, n_seconds, -1).flatten(1, 2)
-            spa_embed = torch.cat((spa_embed_used[:, 0:1, :].expand(bs, -1, -1), spa_embed), dim=1)
+            spa_embed = (
+                spa_embed_used[:, 1:, :]
+                .unsqueeze(2)
+                .expand(bs, -1, n_seconds, -1)
+                .flatten(1, 2)
+            )
+            spa_embed = torch.cat(
+                (spa_embed_used[:, 0:1, :].expand(bs, -1, -1), spa_embed), dim=1
+            )
             x = x + spa_embed
 
-        tem_embed = self.tem_embed[:, 0:n_seconds, :].unsqueeze(1).expand(bs, n_channels, -1, -1).flatten(1, 2)
+        tem_embed = (
+            self.tem_embed[:, 0:n_seconds, :]
+            .unsqueeze(1)
+            .expand(bs, n_channels, -1, -1)
+            .flatten(1, 2)
+        )
         x[:, 1:, :] += tem_embed
 
         x = self.dropout(x)
@@ -174,7 +213,9 @@ class VAT(nn.Module):
         x = self.norm_layer(x)
         return x
 
-    def forward(self, x, input_chans=None, return_all_tokens=False, return_patch_tokens=False):
+    def forward(
+        self, x, input_chans=None, return_all_tokens=False, return_patch_tokens=False
+    ):
         x = self.forward_feature(x, input_chans)
         if return_all_tokens:
             return x
@@ -186,7 +227,14 @@ class VAT(nn.Module):
 
 def get_model_default_params():
     return dict(
-        feature_dim=32, embed_dim=256, depth=12, heads=10, mlp_dim=2048, dim_head=62, dropout=0.3, emb_dropout=0.3
+        feature_dim=32,
+        embed_dim=256,
+        depth=12,
+        heads=10,
+        mlp_dim=2048,
+        dim_head=62,
+        dropout=0.3,
+        emb_dropout=0.3,
     )
 
 
@@ -194,7 +242,7 @@ def get_model_default_params():
 def VAT_classifier(pretrained=False, **kwargs):
     config = get_model_default_params()
     config["num_classes"] = kwargs["num_classes"]
-    config['feature_dim'] = kwargs['feature_dim']
+    config["feature_dim"] = kwargs["feature_dim"]
     config["depth"] = 2
     config["heads"] = 10
     print("VAT classifier parameters:", config)
@@ -203,7 +251,7 @@ def VAT_classifier(pretrained=False, **kwargs):
     return model
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     model = VAT_classifier(num_classes=138)
     x = torch.randn(2, 62, 5, 4)
     in_chans = torch.arange(0, 63)

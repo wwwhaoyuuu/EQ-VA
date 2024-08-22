@@ -18,10 +18,21 @@ class SingleShockDataset(Dataset):
         self.__init_dataset()
 
     def __init_dataset(self) -> None:
-        self.__data = np.load(os.path.join(str(self.__folder_path), f'{self.__valance}_{self.__stage}_data.npy'))
-        self.__label = np.load(os.path.join(str(self.__folder_path), f'{self.__valance}_{self.__stage}_label.npy'))
+        self.__data = np.load(
+            os.path.join(
+                str(self.__folder_path), f"{self.__valance}_{self.__stage}_data.npy"
+            )
+        )
+        self.__label = np.load(
+            os.path.join(
+                str(self.__folder_path), f"{self.__valance}_{self.__stage}_label.npy"
+            )
+        )
         self.__label = self.__label + self.sub_start
-        self.ch_names = np.load(os.path.join(str(self.__folder_path), 'channel_names.npy'), allow_pickle=True)
+        self.ch_names = np.load(
+            os.path.join(str(self.__folder_path), "channel_names.npy"),
+            allow_pickle=True,
+        )
 
         self.__length = self.__data.shape[0]
 
@@ -39,7 +50,9 @@ class SingleShockDataset(Dataset):
 
 
 class ShockDataset(Dataset):
-    def __init__(self, folder_paths: list_path, valance: list, stage: str, sub_start: int):
+    def __init__(
+        self, folder_paths: list_path, valance: list, stage: str, sub_start: int
+    ):
         self.__folder_paths = folder_paths
         self.__valance = valance
         self.__stage = stage
@@ -51,8 +64,10 @@ class ShockDataset(Dataset):
         self.__init_dataset()
 
     def __init_dataset(self) -> None:
-        self.__datasets = [SingleShockDataset(file_path, valance, self.__stage, self.__sub_start)
-                           for file_path, valance in zip(self.__folder_paths, self.__valance)]
+        self.__datasets = [
+            SingleShockDataset(file_path, valance, self.__stage, self.__sub_start)
+            for file_path, valance in zip(self.__folder_paths, self.__valance)
+        ]
 
         dataset_idx = 0
         for dataset in self.__datasets:
@@ -65,7 +80,7 @@ class ShockDataset(Dataset):
 
     def __getitem__(self, idx: int):
         dataset_idx = bisect.bisect(self.__dataset_idxes, idx) - 1
-        item_idx = (idx - self.__dataset_idxes[dataset_idx])
+        item_idx = idx - self.__dataset_idxes[dataset_idx]
         return self.__datasets[dataset_idx][item_idx]
 
     def get_ch_names(self):
@@ -75,13 +90,10 @@ class ShockDataset(Dataset):
         return self.__datasets[0].get_classes()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # using example
     dataset_train = [
         [Path("../Dataset/SEED_PI/window5_step1")],
-        [Path("../Dataset/FACED_PI/window5_step1")]
+        [Path("../Dataset/FACED_PI/window5_step1")],
     ]
-    valance_train = [
-        ['positive'],
-        ['positive']
-    ]
+    valance_train = [["positive"], ["positive"]]
